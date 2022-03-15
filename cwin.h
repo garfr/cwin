@@ -50,6 +50,7 @@ enum cwin_event_type {
 };
 
 enum cwin_window_event_type {
+  CWIN_WINDOW_EVENT_RESIZE,
   CWIN_WINDOW_EVENT_CLOSE,
   CWIN_WINDOW_EVENT_FOCUS,
   CWIN_WINDOW_EVENT_UNFOCUS,
@@ -60,11 +61,13 @@ enum cwin_window_event_type {
 struct cwin_window_event {
   enum cwin_window_event_type t;
   struct cwin_window *window;
+  int width, height;
 };
 
 enum cwin_mouse_event_type {
   CWIN_MOUSE_EVENT_MOVE,
   CWIN_MOUSE_EVENT_BUTTON,
+  CWIN_MOUSE_EVENT_WHEEL,
 };
 
 enum cwin_button_state {
@@ -81,9 +84,18 @@ enum cwin_mouse_button {
 struct cwin_mouse_event {
   enum cwin_mouse_event_type t;
   struct cwin_window *window; /* The window with mouse focus. */
-  int x, y;
-  enum cwin_button_state state;
-  enum cwin_mouse_button button;
+  union {
+    struct {
+      int x, y;
+    };
+    struct {
+      enum cwin_button_state state;
+      enum cwin_mouse_button button;
+    };
+    struct {
+      int delta;
+    };
+  };
 };
 
 struct cwin_event {
@@ -122,6 +134,9 @@ void cwin_window_get_size_screen_coordinates(struct cwin_window *window,
                                              int *width, int *height);
 void cwin_window_get_size_pixels(struct cwin_window *window,
                                  int *width, int *height);
+
+void cwin_mouse_capture(struct cwin_window *window);
+void cwin_mouse_uncapture(struct cwin_window *window);
 
 void cwin_destroy_window(struct cwin_window *window);
 

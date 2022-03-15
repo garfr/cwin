@@ -61,6 +61,10 @@ int main()
         case CWIN_WINDOW_EVENT_CLOSE:
           running = false;
           break;
+        case CWIN_WINDOW_EVENT_RESIZE:
+          printf("Window resize: (%d, %d)\n", event.window.width,
+                 event.window.height);
+          break;
         case CWIN_WINDOW_EVENT_ENTER:
           printf("Mouse enter\n");
           break;
@@ -79,9 +83,22 @@ int main()
         switch (event.mouse.t)
         {
         case CWIN_MOUSE_EVENT_MOVE:
-          printf("Mouse move: %d %d\n", event.mouse.x, event.mouse.y);
+          printf("Mouse move: (%d, %d)\n", event.mouse.x, event.mouse.y);
+          break;
+        case CWIN_MOUSE_EVENT_WHEEL:
+          printf("Mouse wheel: %d\n", event.mouse.delta);
           break;
         case CWIN_MOUSE_EVENT_BUTTON:
+          if (event.mouse.state == CWIN_BUTTON_DOWN &&
+              event.mouse.button == CWIN_MOUSE_BUTTON_LEFT)
+          {
+            cwin_mouse_capture(window);
+          }
+          if (event.mouse.state == CWIN_BUTTON_DOWN &&
+              event.mouse.button == CWIN_MOUSE_BUTTON_RIGHT)
+          {
+            cwin_mouse_uncapture(window);
+          }
           printf("Mouse %s: %d\n",
                  event.mouse.state == CWIN_BUTTON_DOWN ? "down" : "up",
                  event.mouse.button);

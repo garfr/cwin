@@ -183,10 +183,17 @@ enum cwin_error cwin_plat_init_window(struct cwin_window *window,
     return err;
   }
 
+  DWORD style = WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
+  style |= WS_SYSMENU | WS_MINIMIZEBOX;
+  style |= WS_CAPTION;
+  style |= WS_MAXIMIZEBOX | WS_THICKFRAME;
+
+  DWORD exstyle = WS_EX_APPWINDOW;
   window->plat.is_tracked = false;
-  window->plat.handle = CreateWindowEx(0, CWIN_CLASS_NAME,
+  window->plat.handle = CreateWindowEx(exstyle,
+                                       CWIN_CLASS_NAME,
                                        str,
-                                       WS_OVERLAPPEDWINDOW,
+                                       style,
                                        builder->x, builder->y,
                                        builder->width, builder->height,
                                        NULL,
@@ -243,6 +250,11 @@ LRESULT CALLBACK cwin_win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam,
   case WM_CLOSE:
     event = alloc_window_event(queue, CWIN_WINDOW_EVENT_CLOSE, window);
     break;
+  case WM_SIZE:
+    event = alloc_window_event(queue, CWIN_WINDOW_EVENT_RESIZE, window);
+    event->window.width = LOWORD(lparam);
+    event->window.height = HIWORD(lparam);
+    break;
   case WM_MOUSEHOVER:
     event = alloc_window_event(queue, CWIN_WINDOW_EVENT_ENTER, window);
     break;
@@ -255,6 +267,11 @@ LRESULT CALLBACK cwin_win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam,
     event->mouse.state = CWIN_BUTTON_DOWN;
     event->mouse.button = CWIN_MOUSE_BUTTON_LEFT;
     break;
+  case WM_MBUTTONDOWN:
+    event = alloc_mouse_event(queue, CWIN_MOUSE_EVENT_BUTTON, window);
+    event->mouse.state = CWIN_BUTTON_DOWN;
+    event->mouse.button = CWIN_MOUSE_BUTTON_MIDDLE;
+    break;
   case WM_RBUTTONDOWN:
     event = alloc_mouse_event(queue, CWIN_MOUSE_EVENT_BUTTON, window);
     event->mouse.state = CWIN_BUTTON_DOWN;
@@ -265,10 +282,19 @@ LRESULT CALLBACK cwin_win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam,
     event->mouse.state = CWIN_BUTTON_UP;
     event->mouse.button = CWIN_MOUSE_BUTTON_LEFT;
     break;
+  case WM_MBUTTONUP:
+    event = alloc_mouse_event(queue, CWIN_MOUSE_EVENT_BUTTON, window);
+    event->mouse.state = CWIN_BUTTON_UP;
+    event->mouse.button = CWIN_MOUSE_BUTTON_MIDDLE;
+    break;
   case WM_RBUTTONUP:
     event = alloc_mouse_event(queue, CWIN_MOUSE_EVENT_BUTTON, window);
     event->mouse.state = CWIN_BUTTON_UP;
     event->mouse.button = CWIN_MOUSE_BUTTON_RIGHT;
+    break;
+  case WM_MOUSEWHEEL:
+    event = alloc_mouse_event(queue, CWIN_MOUSE_EVENT_WHEEL, window);
+    event->mouse.delta = GET_WHEEL_DELTA_WPARAM(wparam);
     break;
   case WM_KILLFOCUS:
     alloc_window_event(queue, CWIN_WINDOW_EVENT_UNFOCUS, window);
@@ -302,6 +328,16 @@ LRESULT CALLBACK cwin_win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam,
   }
 
   return 0;
+}
+
+void cwin_mouse_capture(struct cwin_window *window)
+{
+  SetCapture(window->plat.handle);
+}
+
+void cwin_mouse_uncapture(struct cwin_window *window)
+{
+  ReleaseCapture();
 }
 
 enum cwin_error utf8_to_wide_string(WCHAR **str_out, int *len_out,
