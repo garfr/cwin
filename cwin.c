@@ -67,6 +67,9 @@ struct cwin_win32_window {
   bool is_tracked;
   enum cwin_screen_state screen_state;
   WINDOWPLACEMENT prev_placement; /* Window placement before fullscreen. */
+  bool has_minimum, has_maximum;
+  int min_width, min_height;
+  int max_width, max_height;
 };
 
 CWIN_WINDOW_TYPE(struct cwin_win32_window);
@@ -193,6 +196,7 @@ enum cwin_error cwin_plat_init_window(struct cwin_window *window,
   DWORD exstyle = WS_EX_APPWINDOW;
   window->plat.is_tracked = false;
   window->plat.screen_state = CWIN_SCREEN_WINDOWED;
+  window->plat.has_minimum = window->plat.has_maximum = false;
   window->plat.handle = CreateWindowEx(exstyle,
                                        CWIN_CLASS_NAME,
                                        str,
@@ -273,6 +277,22 @@ void cwin_window_set_screen_state(struct cwin_window *window,
   window->plat.screen_state = state;
 }
 
+void cwin_window_set_maximum_size(struct cwin_window *window,
+                                  int max_width, int max_height)
+{
+  window->plat.has_maximum = true;
+  window->plat.max_width = max_width;
+  window->plat.max_height = max_height;
+}
+
+void cwin_window_set_minimum_size(struct cwin_window *window,
+                                  int min_width, int min_height)
+{
+  window->plat.has_minimum = true;
+  window->plat.min_width = min_width;
+  window->plat.min_height = min_height;
+}
+
 LRESULT CALLBACK cwin_win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam,
                                         LPARAM lparam)
 {
@@ -295,6 +315,20 @@ LRESULT CALLBACK cwin_win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam,
   case WM_CLOSE:
     event = alloc_window_event(queue, CWIN_WINDOW_EVENT_CLOSE, window);
     break;
+  case WM_GETMINMAXINFO: {
+    LPMINMAXINFO info = (LPMINMAXINFO) lparam;
+    if (window->plat.has_minimum)
+    {
+      info->ptMinTrackSize.x = window->plat.min_width;
+      info->ptMinTrackSize.y = window->plat.min_height;
+    }
+    if (window->plat.has_maximum)
+    {
+      info->ptMaxTrackSize.x = window->plat.max_width;
+      info->ptMaxTrackSize.y = window->plat.max_height;
+    }
+    break;
+  }
   case WM_SIZE:
     event = alloc_window_event(queue, CWIN_WINDOW_EVENT_RESIZE, window);
     event->window.width = LOWORD(lparam);

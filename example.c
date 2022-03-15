@@ -30,6 +30,8 @@ int main()
   struct cwin_window_builder window_builder = {
     .name = "cwin example, 素晴らしい",
     .queue = queue,
+    .width = 200,
+    .height = 200,
   };
 
   err = cwin_create_window(&window, &window_builder);
@@ -48,6 +50,9 @@ int main()
 
   cwin_window_get_size_screen_coordinates(window, &scwidth, &scheight);
   printf("Screen coordinate size: (%d, %d)\n", scwidth, scheight);
+
+  cwin_window_set_minimum_size(window, 100, 100);
+  cwin_window_set_maximum_size(window, 300, 300);
 
   while (running)
   {

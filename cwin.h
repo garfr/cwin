@@ -154,4 +154,9 @@ void cwin_get_raw_window(struct cwin_window *window,
 void cwin_window_set_screen_state(struct cwin_window *window,
                                   enum cwin_screen_state state);
 
+void cwin_window_set_maximum_size(struct cwin_window *window,
+                                  int max_width, int max_height);
+void cwin_window_set_minimum_size(struct cwin_window *window,
+                                  int min_width, int min_height);
+
 #endif
