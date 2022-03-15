@@ -92,12 +92,12 @@ int main()
           if (event.mouse.state == CWIN_BUTTON_DOWN &&
               event.mouse.button == CWIN_MOUSE_BUTTON_LEFT)
           {
-            cwin_mouse_capture(window);
+            cwin_window_set_screen_state(window, CWIN_SCREEN_FULLSCREEN);
           }
           if (event.mouse.state == CWIN_BUTTON_DOWN &&
               event.mouse.button == CWIN_MOUSE_BUTTON_RIGHT)
           {
-            cwin_mouse_uncapture(window);
+            cwin_window_set_screen_state(window, CWIN_SCREEN_WINDOWED);
           }
           printf("Mouse %s: %d\n",
                  event.mouse.state == CWIN_BUTTON_DOWN ? "down" : "up",

@@ -120,6 +120,12 @@ struct cwin_raw_window {
   };
 };
 
+enum cwin_screen_state {
+  CWIN_SCREEN_FULLSCREEN,
+  CWIN_SCREEN_DESKTOP,
+  CWIN_SCREEN_WINDOWED,
+};
+
 /* Initializes the library internals. */
 enum cwin_error cwin_init(void);
 void cwin_deinit(void);
@@ -144,5 +150,8 @@ bool cwin_poll_event(struct cwin_event_queue *queue, struct cwin_event *event);
 
 void cwin_get_raw_window(struct cwin_window *window,
                          struct cwin_raw_window *raw);
+
+void cwin_window_set_screen_state(struct cwin_window *window,
+                                  enum cwin_screen_state state);
 
 #endif

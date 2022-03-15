@@ -65,6 +65,8 @@ struct cwin_event *alloc_mouse_event(struct cwin_event_queue *queue,
 struct cwin_win32_window {
   HWND handle;
   bool is_tracked;
+  enum cwin_screen_state screen_state;
+  WINDOWPLACEMENT prev_placement; /* Window placement before fullscreen. */
 };
 
 CWIN_WINDOW_TYPE(struct cwin_win32_window);
@@ -190,6 +192,7 @@ enum cwin_error cwin_plat_init_window(struct cwin_window *window,
 
   DWORD exstyle = WS_EX_APPWINDOW;
   window->plat.is_tracked = false;
+  window->plat.screen_state = CWIN_SCREEN_WINDOWED;
   window->plat.handle = CreateWindowEx(exstyle,
                                        CWIN_CLASS_NAME,
                                        str,
@@ -226,6 +229,48 @@ void cwin_plat_get_raw_window(struct cwin_window *window,
   raw->t = CWIN_RAW_WINDOW_WIN32;
   raw->win32.hwnd = window->plat.handle;
   raw->win32.hinstance = win32.instance;
+}
+
+void cwin_window_set_screen_state(struct cwin_window *window,
+                                  enum cwin_screen_state state)
+{
+  if (state == window->plat.screen_state)
+  {
+    return;
+  }
+
+  DWORD style = GetWindowLong(window->plat.handle, GWL_STYLE);
+  switch (state)
+  {
+  case CWIN_SCREEN_FULLSCREEN: {
+    MONITORINFO mi = {
+      sizeof(MONITORINFO)
+    };
+    if (GetWindowPlacement(window->plat.handle,
+                           &window->plat.prev_placement) &&
+        GetMonitorInfo(MonitorFromWindow(window->plat.handle,
+                                         MONITOR_DEFAULTTOPRIMARY), &mi))
+    {
+      SetWindowLong(window->plat.handle, GWL_STYLE,
+                    style & ~WS_OVERLAPPEDWINDOW);
+      SetWindowPos(window->plat.handle, HWND_TOP, mi.rcMonitor.left,
+                   mi.rcMonitor.top, mi.rcMonitor.right - mi.rcMonitor.left,
+                   mi.rcMonitor.bottom - mi.rcMonitor.top,
+                   SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+    }
+    break;
+  }
+  case CWIN_SCREEN_WINDOWED: {
+    SetWindowLong(window->plat.handle, GWL_STYLE, style | WS_OVERLAPPEDWINDOW);
+    SetWindowPlacement(window->plat.handle, &window->plat.prev_placement);
+    SetWindowPos(window->plat.handle, NULL, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER |
+                 SWP_FRAMECHANGED);
+    break;
+  }
+  }
+
+  window->plat.screen_state = state;
 }
 
 LRESULT CALLBACK cwin_win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam,
