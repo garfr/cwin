@@ -1,6 +1,7 @@
 #include "cwin.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #define CWIN_NEW(type) ((type *) calloc(1, sizeof(type)))
 #define CWIN_ARR(type, len) ((type *) calloc((len), sizeof(type)))
@@ -32,14 +33,23 @@ struct cwin_event_queue *global_queue;
 /* PLATFORM PROTOTYPES */
 enum cwin_error cwin_plat_init_window(struct cwin_window *window,
                                       struct cwin_window_builder *builder);
+void cwin_plat_deinit_window(struct cwin_window *window);
 enum cwin_error cwin_plat_init(void);
+void cwin_plat_deinit(void);
 enum cwin_error cwin_plat_pump_events(void);
 void cwin_plat_get_raw_window(struct cwin_window *window,
                               struct cwin_raw_window *raw);
 
 /* REGULAR PROTOTYPES */
 
-struct cwin_event *alloc_event(struct cwin_event_queue *queue);
+struct cwin_event *alloc_event(struct cwin_event_queue *queue,
+                               enum cwin_event_type type);
+struct cwin_event *alloc_window_event(struct cwin_event_queue *queue,
+                                      enum cwin_window_event_type type,
+                                      struct cwin_window *window);
+struct cwin_event *alloc_mouse_event(struct cwin_event_queue *queue,
+                                      enum cwin_mouse_event_type type,
+                                      struct cwin_window *window);
 
 #ifdef CWIN_BACKEND_WIN32
 
@@ -54,6 +64,7 @@ struct cwin_event *alloc_event(struct cwin_event_queue *queue);
 
 struct cwin_win32_window {
   HWND handle;
+  bool is_tracked;
 };
 
 CWIN_WINDOW_TYPE(struct cwin_win32_window);
@@ -75,6 +86,38 @@ enum cwin_error utf8_to_wide_string(WCHAR **str_out, int *len_out,
                                     const uint8_t *src, size_t src_len);
 
 /* PLATFORM FUNCTIONS */
+
+void cwin_window_get_size_pixels(struct cwin_window *window,
+                                 int *width, int *height)
+{
+  RECT rect;
+  GetClientRect(window->plat.handle, &rect);
+
+  if (width != NULL)
+  {
+    *width = rect.right;
+  }
+  if (height != NULL)
+  {
+    *height = rect.bottom;
+  }
+}
+
+void cwin_window_get_size_screen_coordinates(struct cwin_window *window,
+                                             int *width, int *height)
+{
+  RECT rect;
+  GetClientRect(window->plat.handle, &rect);
+
+  if (width != NULL)
+  {
+    *width = rect.right;
+  }
+  if (height != NULL)
+  {
+    *height = rect.bottom;
+  }
+}
 
 enum cwin_error cwin_plat_pump_events(void)
 {
@@ -106,6 +149,11 @@ enum cwin_error cwin_plat_init(void)
   return CWIN_SUCCESS;
 }
 
+void cwin_plat_deinit(void)
+{
+  UnregisterClass(CWIN_CLASS_NAME, win32.instance);
+}
+
 enum cwin_error cwin_plat_init_window(struct cwin_window *window,
                                       struct cwin_window_builder *builder)
 {
@@ -135,6 +183,7 @@ enum cwin_error cwin_plat_init_window(struct cwin_window *window,
     return err;
   }
 
+  window->plat.is_tracked = false;
   window->plat.handle = CreateWindowEx(0, CWIN_CLASS_NAME,
                                        str,
                                        WS_OVERLAPPEDWINDOW,
@@ -157,6 +206,11 @@ enum cwin_error cwin_plat_init_window(struct cwin_window *window,
   SetWindowLongPtrA(window->plat.handle, GWLP_USERDATA, (LONG_PTR) window);
 
   return CWIN_SUCCESS;
+}
+
+void cwin_plat_deinit_window(struct cwin_window *window)
+{
+  DestroyWindow(window->plat.handle);
 }
 
 void cwin_plat_get_raw_window(struct cwin_window *window,
@@ -187,9 +241,61 @@ LRESULT CALLBACK cwin_win32_window_proc(HWND hwnd, UINT umsg, WPARAM wparam,
   switch (umsg)
   {
   case WM_CLOSE:
-    event = alloc_event(queue);
-    event->t = CWIN_EVENT_WINDOW;
-    event->window.t = CWIN_WINDOW_EVENT_CLOSE;
+    event = alloc_window_event(queue, CWIN_WINDOW_EVENT_CLOSE, window);
+    break;
+  case WM_MOUSEHOVER:
+    event = alloc_window_event(queue, CWIN_WINDOW_EVENT_ENTER, window);
+    break;
+  case WM_MOUSELEAVE:
+    alloc_window_event(queue, CWIN_WINDOW_EVENT_EXIT, window);
+    window->plat.is_tracked = false;
+    break;
+  case WM_LBUTTONDOWN:
+    event = alloc_mouse_event(queue, CWIN_MOUSE_EVENT_BUTTON, window);
+    event->mouse.state = CWIN_BUTTON_DOWN;
+    event->mouse.button = CWIN_MOUSE_BUTTON_LEFT;
+    break;
+  case WM_RBUTTONDOWN:
+    event = alloc_mouse_event(queue, CWIN_MOUSE_EVENT_BUTTON, window);
+    event->mouse.state = CWIN_BUTTON_DOWN;
+    event->mouse.button = CWIN_MOUSE_BUTTON_RIGHT;
+    break;
+  case WM_LBUTTONUP:
+    event = alloc_mouse_event(queue, CWIN_MOUSE_EVENT_BUTTON, window);
+    event->mouse.state = CWIN_BUTTON_UP;
+    event->mouse.button = CWIN_MOUSE_BUTTON_LEFT;
+    break;
+  case WM_RBUTTONUP:
+    event = alloc_mouse_event(queue, CWIN_MOUSE_EVENT_BUTTON, window);
+    event->mouse.state = CWIN_BUTTON_UP;
+    event->mouse.button = CWIN_MOUSE_BUTTON_RIGHT;
+    break;
+  case WM_KILLFOCUS:
+    alloc_window_event(queue, CWIN_WINDOW_EVENT_UNFOCUS, window);
+    break;
+  case WM_SETFOCUS:
+    alloc_window_event(queue, CWIN_WINDOW_EVENT_FOCUS, window);
+    break;
+  case WM_MOUSEMOVE:
+    event = alloc_mouse_event(queue, CWIN_MOUSE_EVENT_MOVE, window);
+    event->mouse.x = MAKEPOINTS(lparam).x;
+    event->mouse.y = MAKEPOINTS(lparam).y;
+
+    if (!window->plat.is_tracked)
+    {
+      TRACKMOUSEEVENT track_mouse_event;
+      track_mouse_event.cbSize = sizeof(TRACKMOUSEEVENT);
+      track_mouse_event.dwFlags = TME_LEAVE;
+      track_mouse_event.hwndTrack = hwnd;
+
+      if (TrackMouseEvent(&track_mouse_event))
+      {
+        window->plat.is_tracked = true;
+      }
+
+      alloc_window_event(queue, CWIN_WINDOW_EVENT_ENTER, window);
+    }
+
     break;
   default:
     return DefWindowProc(hwnd, umsg, wparam, lparam);
@@ -231,16 +337,54 @@ enum cwin_error utf8_to_wide_string(WCHAR **str_out, int *len_out,
 
 /* PRIVATE FUNCTIONS */
 
-struct cwin_event *alloc_event(struct cwin_event_queue *queue)
+struct cwin_event *alloc_event(struct cwin_event_queue *queue,
+                               enum cwin_event_type type)
 {
   if (queue->events_left + 1 > queue->events_alloc)
   {
     queue->events = CWIN_REALLOC(struct cwin_event, queue->events_alloc,
                                  queue->events_alloc * 2, queue->events);
+    if (queue->events == NULL)
+    {
+      return NULL;
+    }
     queue->events_alloc *= 2;
   }
 
-  return &queue->events[queue->events_left++];
+  struct cwin_event *event = &queue->events[queue->events_left++];
+  event->t = type;
+  return event;
+}
+
+struct cwin_event *alloc_window_event(struct cwin_event_queue *queue,
+                                      enum cwin_window_event_type type,
+                                      struct cwin_window *window)
+{
+  struct cwin_event *event = alloc_event(queue, CWIN_EVENT_WINDOW);
+  if (event == NULL)
+  {
+    return NULL;
+  }
+
+  event->window.window = window;
+  event->window.t = type;
+
+  return event;
+}
+struct cwin_event *alloc_mouse_event(struct cwin_event_queue *queue,
+                                      enum cwin_mouse_event_type type,
+                                      struct cwin_window *window)
+{
+  struct cwin_event *event = alloc_event(queue, CWIN_EVENT_MOUSE);
+  if (event == NULL)
+  {
+    return NULL;
+  }
+
+  event->mouse.window = window;
+  event->mouse.t = type;
+
+  return event;
 }
 
 /* PUBLIC FUNCTIONS */
@@ -301,6 +445,7 @@ enum cwin_error cwin_create_window(struct cwin_window **out,
 
 void cwin_destroy_window(struct cwin_window *window)
 {
+  cwin_plat_deinit_window(window);
   CWIN_FREE(struct cwin_window, window);
 }
 
@@ -342,6 +487,12 @@ enum cwin_error cwin_init()
   }
 
   return CWIN_SUCCESS;
+}
+
+void cwin_deinit()
+{
+  cwin_plat_deinit();
+  cwin_destroy_event_queue(global_queue);
 }
 
 void cwin_get_raw_window(struct cwin_window *window,

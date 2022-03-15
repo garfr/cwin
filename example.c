@@ -41,20 +41,63 @@ int main()
 
   cwin_get_raw_window(window, &raw);
   assert(raw.t == CWIN_RAW_WINDOW_WIN32);
+
+  int pwidth, pheight, scwidth, scheight;
+  cwin_window_get_size_pixels(window, &pwidth, &pheight);
+  printf("Pixel size: (%d, %d)\n", pwidth, pheight);
+
+  cwin_window_get_size_screen_coordinates(window, &scwidth, &scheight);
+  printf("Screen coordinate size: (%d, %d)\n", scwidth, scheight);
+
   while (running)
   {
     while (cwin_poll_event(queue, &event))
     {
-      if (event.t == CWIN_EVENT_WINDOW &&
-          event.window.t == CWIN_WINDOW_EVENT_CLOSE)
+      switch (event.t)
       {
-        running = false;
-      }
+      case CWIN_EVENT_WINDOW:
+        switch (event.window.t)
+        {
+        case CWIN_WINDOW_EVENT_CLOSE:
+          running = false;
+          break;
+        case CWIN_WINDOW_EVENT_ENTER:
+          printf("Mouse enter\n");
+          break;
+        case CWIN_WINDOW_EVENT_EXIT:
+          printf("Mouse exit\n");
+          break;
+        case CWIN_WINDOW_EVENT_FOCUS:
+          printf("Mouse focus\n");
+          break;
+        case CWIN_WINDOW_EVENT_UNFOCUS:
+          printf("Mouse unfocus\n");
+          break;
+        }
+        break;
+      case CWIN_EVENT_MOUSE:
+        switch (event.mouse.t)
+        {
+        case CWIN_MOUSE_EVENT_MOVE:
+          printf("Mouse move: %d %d\n", event.mouse.x, event.mouse.y);
+          break;
+        case CWIN_MOUSE_EVENT_BUTTON:
+          printf("Mouse %s: %d\n",
+                 event.mouse.state == CWIN_BUTTON_DOWN ? "down" : "up",
+                 event.mouse.button);
+          break;
+        }
+
+        break;
+    }
     }
   }
 
   cwin_destroy_window(window);
 
+  cwin_destroy_event_queue(queue);
+
+  cwin_deinit();
   printf("Exiting with success\n");
   return EXIT_SUCCESS;
 }
