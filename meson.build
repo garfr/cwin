@@ -11,7 +11,7 @@ test = executable('cwin_example',
                    link_with : cwin_lib
 )
 
-inc = include_directories(".")
+inc = include_directories('.')
 
 cwin_dep = declare_dependency(link_with : cwin_lib,
                               include_directories : inc
