@@ -448,6 +448,54 @@ enum cwin_error utf8_to_wide_string(WCHAR **str_out, int *len_out,
   return CWIN_SUCCESS;
 }
 
+#ifdef CWIN_VULKAN
+
+const char *win32_vk_extensions[] = {
+  "VK_KHR_surface",
+  "VK_KHR_win32_surface",
+};
+
+void cwin_vk_get_required_extensions(struct cwin_window *window,
+                                     const char **extensions,
+                                     int *extension_count)
+{
+  (void) window;
+
+  if (*extension_count == 0 || extensions == NULL)
+  {
+    *extension_count = sizeof(win32_vk_extensions) /
+      sizeof(win32_vk_extensions[0]);
+  } else
+  {
+    for (int i = 0; i < *extension_count; i++)
+    {
+      extensions[i] = win32_vk_extensions[i];
+    }
+  }
+}
+
+enum cwin_error cwin_vk_create_surface(struct cwin_window *window,
+                                       VkInstance instance,
+                                       VkSurfaceKHR *surface)
+{
+  VkResult err;
+  VkWin32SurfaceCreateInfoKHR surface_create_info = {
+    .sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
+    .hwnd = window->plat.handle,
+    .hinstance = win32.instance,
+  };
+
+  err = vkCreateWin32SurfaceKHR(instance, &surface_create_info, NULL, surface);
+  if (err)
+  {
+    return CWIN_ERROR_VK_INTERNAL;
+  }
+
+  return CWIN_SUCCESS;
+}
+
+#endif
+
 #endif
 
 /* PRIVATE FUNCTIONS */

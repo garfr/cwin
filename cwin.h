@@ -24,6 +24,7 @@ enum cwin_error {
   CWIN_ERROR_INVALID_UTF8,
 
   CWIN_ERROR_WIN32_INTERNAL,
+  CWIN_ERROR_VK_INTERNAL,
 };
 
 struct cwin_event_queue;
@@ -158,5 +159,21 @@ void cwin_window_set_maximum_size(struct cwin_window *window,
                                   int max_width, int max_height);
 void cwin_window_set_minimum_size(struct cwin_window *window,
                                   int min_width, int min_height);
+
+
+#ifdef CWIN_VULKAN
+
+#define VK_USE_PLATFORM_WIN32_KHR
+#include <vulkan/vulkan.h>
+
+void cwin_vk_get_required_extensions(struct cwin_window *window,
+                                     const char **extensions,
+                                     int *extension_count);
+
+enum cwin_error cwin_vk_create_surface(struct cwin_window *window,
+                                       VkInstance instance,
+                                       VkSurfaceKHR *surface);
+
+#endif
 
 #endif
